@@ -79,7 +79,7 @@
           <label><span>Strain</span><select name="strain" data-strains required></select></label>
           <div class="field-grid two">
             <label><span>Trimmings harvested</span><input name="trimmings" type="number" inputmode="numeric" min="1" step="1" placeholder="0" required><small>15 trimmings make 1 sale-ready box.</small></label>
-            <label><span>Reference value per box</span><input name="price" type="number" inputmode="decimal" min="0" step="1" placeholder="0" required></label>
+            <label><span>Reference value per box</span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required></label>
           </div>
           <label><span>Notes <i>optional</i></span><textarea name="notes" rows="3" placeholder="Batch, location, quality, or anything worth remembering"></textarea></label>
           <button class="button primary full" type="submit">Add to inventory</button>
@@ -121,7 +121,7 @@
           <label><span>Strain from inventory</span><select name="strain" data-inventory-strains required></select><small data-available-stock>Choose a grower to see stock.</small></label>
           <div class="field-grid two">
             <label><span>Boxes sold</span><input name="boxes" type="number" inputmode="numeric" min="1" step="1" placeholder="0" required><small>Each box uses 15 trimmings from the selected grower.</small></label>
-            <label><span>Sale price per box</span><input name="price" type="number" inputmode="decimal" min="0" step="1" placeholder="3000" required></label>
+            <label><span>Sale price per box</span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="3000" required></label>
           </div>
           <div class="field-grid two">
             <label><span>Date and time</span><input name="date" type="datetime-local" required></label>
@@ -165,7 +165,7 @@
       </article>
       <div class="settings-grid">
         <article class="panel"><div class="panel-heading"><div><p class="eyebrow">ROSTER</p><h2>Members</h2></div></div><form class="inline-form" id="memberForm"><label><span class="sr-only">New member name</span><input name="name" maxlength="40" placeholder="New member name" required></label><button class="button primary" type="submit">Add</button></form><div class="chip-list" id="memberList"></div></article>
-        <article class="panel"><div class="panel-heading"><div><p class="eyebrow">PRODUCT LIST</p><h2>Strains and prices</h2></div></div><form class="inline-form strain-form" id="strainForm"><label><span class="sr-only">New strain</span><input name="name" maxlength="60" placeholder="Strain name" required></label><label><span class="sr-only">Price per box</span><input name="price" type="number" inputmode="decimal" min="0" step="1" placeholder="Price" required></label><button class="button primary" type="submit">Add</button></form><div class="strain-list" id="strainList"></div></article>
+        <article class="panel"><div class="panel-heading"><div><p class="eyebrow">PRODUCT LIST</p><h2>Strains and prices</h2></div></div><form class="inline-form strain-form" id="strainForm"><label><span class="sr-only">New strain</span><input name="name" maxlength="60" placeholder="Strain name" required></label><label><span class="sr-only">Price per box</span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Price" required></label><button class="button primary" type="submit">Add</button></form><div class="strain-list" id="strainList"></div></article>
       </div>
       <article class="panel data-panel"><div><p class="eyebrow">SHARED SOURCE OF TRUTH</p><h2>Connected to the gang sheet.</h2><p>Every approved device reads and writes the same tracker tabs. Refresh to pull the newest entries or export a local audit copy.</p></div><div class="data-actions"><button class="button secondary" type="button" data-action="refresh">Refresh sheet</button><button class="button secondary" type="button" data-export="backup">Export JSON audit</button><a class="button secondary" data-sheet-link target="_blank" rel="noopener">Open Google Sheet</a><button class="button danger" type="button" data-action="sign-out">Lock tracker</button></div></article>
       <article class="panel data-panel archive-panel" data-archive-panel hidden><div><p class="eyebrow">LAST WIPE</p><h2>History stays in the archive.</h2><p>The previous roster, transactions, and balances are held separately. This wave starts with an empty ledger; weekly rollover only carries balances within this wave.</p></div><a class="button secondary" data-archive-link target="_blank" rel="noopener">Open last wipe archive</a></article>
@@ -222,6 +222,6 @@
   </dialog>
   <div class="toast" role="status" aria-live="polite" data-toast></div>
   <script src="config.js?v=20261121"></script>
-  <script src="app.js?v=20261121"></script>
+  <script src="app.js?v=20261121.2"></script>
 </body>
 </html>

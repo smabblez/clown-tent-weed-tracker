@@ -4,10 +4,13 @@
   const config = window.TRACKER_CONFIG || {};
   const TRIMMINGS_PER_BOX = 15;
   const PAYOUT_RATES = Object.freeze({ grower: 0.70, gang: 0.15, seller: 0.15 });
+  const MAX_MONEY_CENTS = Math.floor(Number.MAX_SAFE_INTEGER / 100);
   const state = { members: [], strains: [], grows: [], supplies: [], sales: [], corrections: [], weeks: [], activeWeek: null, accessCode: sessionStorage.getItem("ct_access") || "", adminCode: sessionStorage.getItem("ct_admin") || "", pendingView: "", busy: false };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  const money = new Intl.NumberFormat("en-US", { style: "currency", currency: config.CURRENCY || "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const wholeMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: config.CURRENCY || "USD", maximumFractionDigits: 0 });
+  const decimalMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: config.CURRENCY || "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = { format: function (value) { const amount = rounded(value); return (Number.isInteger(amount) ? wholeMoney : decimalMoney).format(amount); } };
   const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dateTime = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "2-digit", hour: "numeric", minute: "2-digit" });
   let toastTimer;
@@ -19,7 +22,7 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char];
     });
   }
-  function num(value) { return Number(value) || 0; }
+  function num(value) { const number = Number(value); return Number.isFinite(number) ? number : 0; }
   function rounded(value) { return Math.round((num(value) + Number.EPSILON) * 100) / 100; }
   function growTrimmings(grow) {
     return num(grow.trimmings) || num(grow.boxes) * TRIMMINGS_PER_BOX;
@@ -41,12 +44,23 @@
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }
   function splitSale(boxes, price) {
-    const gross = rounded(num(boxes) * num(price));
-    const grower = rounded(gross * PAYOUT_RATES.grower);
-    const seller = rounded(gross * PAYOUT_RATES.seller);
-    const gangShare = rounded(gross - grower - seller);
-    const supplyDeduction = Math.min(gangShare, supplySummary().outstanding);
-    return { gross: gross, grower: grower, seller: seller, supplyDeduction: supplyDeduction, gang: rounded(gangShare - supplyDeduction) };
+    const grossCents = previewTotalCents(boxes, price);
+    if (grossCents === null) return null;
+    const growerCents = Math.round(grossCents * 70 / 100);
+    const sellerCents = Math.round(grossCents * 15 / 100);
+    const gangCents = grossCents - growerCents - sellerCents;
+    const recoveryCents = Math.min(gangCents, Math.round(supplySummary().outstanding * 100));
+    return { gross: grossCents / 100, grower: growerCents / 100, seller: sellerCents / 100, supplyDeduction: recoveryCents / 100, gang: (gangCents - recoveryCents) / 100 };
+  }
+  function previewTotalCents(quantity, price) {
+    const units = Number(quantity);
+    const amount = Number(price);
+    const cents = Math.round(amount * 100);
+    const total = units * cents;
+    if (!Number.isSafeInteger(units) || units < 0 || !Number.isFinite(amount) || amount < 0 ||
+        !Number.isSafeInteger(cents) || cents > MAX_MONEY_CENTS || Math.abs(amount * 100 - cents) > 0.000001 ||
+        !Number.isSafeInteger(total) || total > MAX_MONEY_CENTS) return null;
+    return total;
   }
   function toast(message) {
     const element = $("[data-toast]");
@@ -65,14 +79,27 @@
     if (!config.API_URL) throw new Error("The Google Sheet backend has not been connected yet.");
     const generation = sessionGeneration;
     const body = Object.assign({ action: action, accessCode: state.accessCode, adminCode: state.adminCode }, payload || {});
-    const response = await fetch(config.API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body),
-      redirect: "follow"
-    });
-    if (!response.ok) throw new Error("The sheet service could not be reached.");
-    const result = await response.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(function () { controller.abort(); }, 45000);
+    let result;
+    try {
+      const response = await fetch(config.API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(body),
+        redirect: "follow",
+        signal: controller.signal
+      });
+      if (!response.ok) throw new Error("The sheet service could not be reached.");
+      result = await response.json();
+    } catch (error) {
+      if (action === "bootstrap" || action === "verifyAdmin") throw new Error("The sheet service could not be reached. Please try again.");
+      const uncertain = new Error("The save could not be confirmed. Refresh and check the ledger before trying again.");
+      uncertain.unconfirmedSave = true;
+      throw uncertain;
+    } finally {
+      clearTimeout(timeout);
+    }
     if (generation !== sessionGeneration) throw new Error("This tracker session has ended.");
     if (!result.ok) throw new Error(result.error || "The sheet rejected this request.");
     return result;
@@ -206,13 +233,16 @@
       }
     });
     const list = Array.from(people.values()).map(function (row) {
-      row.total = row.grower + row.seller + row.supplies;
+      row.grower = rounded(row.grower);
+      row.seller = rounded(row.seller);
+      row.supplies = rounded(row.supplies);
+      row.total = rounded(row.grower + row.seller + row.supplies);
       return row;
     }).sort(function (a, b) { return b.total - a.total; });
     const suppliesDue = state.supplies.reduce(function (sum, supply) {
       return sum + (supply.paidAt ? 0 : num(supply.total || num(supply.quantity) * num(supply.unitCost)));
     }, 0);
-    return { people: list, gangTotal: gangTotal, suppliesDue: rounded(suppliesDue) };
+    return { people: list, gangTotal: rounded(gangTotal), suppliesDue: rounded(suppliesDue) };
   }
   function supplySummary() {
     const purchased = state.supplies.reduce(function (sum, row) { return sum + num(row.total || num(row.quantity) * num(row.unitCost)); }, 0);
@@ -238,7 +268,10 @@
       if (supply.paidAt) buyer.paid += amount; else buyer.due += amount;
       people.set(supply.buyer, buyer);
     });
-    return Array.from(people.values()).sort(function (a, b) { return b.due - a.due || b.earned - a.earned; });
+    return Array.from(people.values()).map(function (row) {
+      ["earned", "supplies", "paid", "due"].forEach(function (key) { row[key] = rounded(row[key]); });
+      return row;
+    }).sort(function (a, b) { return b.due - a.due || b.earned - a.earned; });
   }
   function ledgerRows() {
     return state.grows.map(function (row) { return Object.assign({ type: "grow" }, row); })
@@ -581,6 +614,8 @@
     renderCorrections();
     renderSelects();
     renderWeeks();
+    updateSalePreview();
+    updateSupplyPreview();
     $$("[data-sheet-link]").forEach(function (link) { link.href = config.SHEET_URL; });
     renderWaveDetails();
   }
@@ -639,7 +674,7 @@
       return true;
     } catch (error) {
       if (generation !== sessionGeneration) return false;
-      setSync("error", "Save failed");
+      setSync("error", error.unconfirmedSave ? "Refresh to check save" : "Save failed");
       if (/manager|admin/i.test(error.message)) {
         lockAdmin();
         state.pendingView = "manager";
@@ -657,6 +692,11 @@
   function updateSalePreview() {
     const form = $("#saleForm");
     const split = splitSale(form.boxes.value, form.price.value);
+    if (!split) {
+      $("[data-preview-gross]").textContent = "Check amounts";
+      ["grower", "seller", "supplies", "gang"].forEach(function (key) { $("[data-preview-" + key + "]").textContent = "--"; });
+      return;
+    }
     $("[data-preview-gross]").textContent = money.format(split.gross);
     $("[data-preview-grower]").textContent = money.format(split.grower);
     $("[data-preview-seller]").textContent = money.format(split.seller);
@@ -665,7 +705,13 @@
   }
   function updateSupplyPreview() {
     const form = $("#supplyForm");
-    const total = rounded(num(form.quantity.value) * num(form.unitCost.value));
+    const cents = previewTotalCents(form.quantity.value, form.unitCost.value);
+    if (cents === null) {
+      $("[data-preview-supply-total]").textContent = "Check amounts";
+      $("[data-preview-supply-balance]").textContent = "--";
+      return;
+    }
+    const total = cents / 100;
     const outstanding = supplySummary().outstanding;
     $("[data-preview-supply-total]").textContent = money.format(total);
     $("[data-preview-supply-balance]").textContent = money.format(outstanding + total);
@@ -691,7 +737,7 @@
       return;
     }
     if (type === "payouts") {
-      csvDownload("clown-tent-payouts-" + stamp + ".csv", [["Member", "Grower due", "Seller due", "Total due"]].concat(payoutSummary().people.map(function (row) { return [row.name, row.grower, row.seller, row.total]; })));
+      csvDownload("clown-tent-payouts-" + stamp + ".csv", [["Member", "Grower due", "Seller due", "Supply reimbursements due", "Total due"]].concat(payoutSummary().people.map(function (row) { return [row.name, row.grower, row.seller, row.supplies, row.total]; })));
       return;
     }
     csvDownload("clown-tent-ledger-" + stamp + ".csv", [["Date", "Type", "Grower", "Seller", "Supply buyer", "Item / strain", "Trimmings (grow)", "Supply quantity", "Boxes (sale)", "Unit price / cost", "Gross", "Supplies from gang share", "Grower payout", "Gang keeps", "Seller payout", "Reference / notes"]].concat(ledgerRows().map(function (row) {
@@ -910,7 +956,7 @@
   $("#supplyForm").date.value = nowInput();
   $("#saleForm").date.value = nowInput();
   const initialView = location.hash.slice(1);
-  const requestedView = $('[data-view="' + initialView + '"]') ? initialView : "dashboard";
+  const requestedView = $$("[data-view]").some(function (button) { return button.dataset.view === initialView; }) ? initialView : "dashboard";
   if (requestedView === "manager" && !state.accessCode) {
     state.pendingView = "manager";
     showView("dashboard", false);
