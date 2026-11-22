@@ -704,7 +704,7 @@
     $$("[data-view]").forEach(function (button) {
       button.setAttribute("aria-current", button.dataset.view === name ? "page" : "false");
     });
-    $("[data-more-nav]").classList.toggle("active", ["supplies", "ledger", "manager"].includes(name));
+    $("[data-more-nav]").classList.toggle("active", ["ledger", "manager"].includes(name));
     const form = { intake: $("#growForm"), supplies: $("#supplyForm"), sales: $("#saleForm") }[name];
     if (form && form.dataset.dateEdited !== "true") form.date.value = nowInput();
     if (updateHash !== false) history.replaceState(null, "", "#" + name);
