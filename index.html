@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a0d09">
   <meta name="description" content="The Clown Tent weed operation ledger for GTA roleplay grow intake, sales, inventory, and payouts.">
   <title>The Clown Tent - New Wave Operations</title>
-  <link rel="stylesheet" href="styles.css?v=20261121">
+  <link rel="stylesheet" href="styles.css?v=20261121.3">
 </head>
 <body class="tracker-locked">
   <a class="skip-link" href="#app-main">Skip to tracker</a>
@@ -22,29 +22,42 @@
   </header>
 
   <nav class="app-nav" aria-label="Tracker sections">
-    <button type="button" data-view="dashboard" aria-current="page"><span aria-hidden="true">&#8962;</span><b>Dashboard</b></button>
-    <button type="button" data-view="intake"><span aria-hidden="true">&#43;</span><b>Grows</b></button>
-    <button type="button" data-view="supplies"><span aria-hidden="true">&#9633;</span><b>Supplies</b></button>
-    <button type="button" data-view="sales"><span aria-hidden="true">$</span><b>Sales</b></button>
-    <button type="button" data-view="payouts"><span aria-hidden="true">%</span><b>Payouts</b></button>
-    <button type="button" data-view="ledger"><span aria-hidden="true">&#8801;</span><b>Ledger</b></button>
-    <button type="button" data-view="manager"><span aria-hidden="true">&#9881;</span><b>Manager</b></button>
+    <button type="button" data-view="dashboard" aria-current="page"><b>Home</b></button>
+    <button type="button" data-view="intake"><b>Grow</b></button>
+    <button type="button" data-view="sales"><b>Sell</b></button>
+    <button type="button" data-view="payouts"><b>Payouts</b></button>
+    <details class="nav-more" data-more-nav>
+      <summary>More</summary>
+      <div class="nav-more-menu">
+        <button type="button" data-view="supplies"><b>Supplies</b></button>
+        <button type="button" data-view="ledger"><b>History</b></button>
+        <button type="button" data-view="manager"><b>Manager</b></button>
+        <button type="button" data-action="sign-out"><b>Lock tracker</b></button>
+      </div>
+    </details>
   </nav>
 
   <main id="app-main" tabindex="-1">
     <aside class="week-bar" aria-label="Active tracking week">
       <div><p><small>CURRENT TRACKING WEEK</small><strong data-active-week>Loading current week...</strong></p></div>
       <p data-week-summary>Stock and balances carry between weeks within this wave.</p>
-      <button class="button secondary" type="button" data-go="manager">Manager controls</button>
     </aside>
     <section class="view active" data-view-panel="dashboard" aria-labelledby="dashboard-title">
-      <div class="page-heading">
-        <div><p class="eyebrow" data-group-name>THE CLOWN TENT</p><h1 id="dashboard-title">Grow together.<br><em>Get paid right.</em></h1><p class="dashboard-intro">Your crew, your stock, and every payout in one place.</p></div>
-        <div class="heading-actions"><button class="button primary" type="button" data-go="intake">Log a grow</button><button class="button sale" type="button" data-go="sales">Record a sale</button><button class="button secondary" type="button" data-go="supplies">Log supplies</button></div>
+      <div class="page-heading home-heading">
+        <div><p class="eyebrow" data-group-name>THE CLOWN TENT</p><h1 id="dashboard-title">Log an entry</h1></div>
+      </div>
+      <div class="member-picker">
+        <label><span>Member name <i>optional</i></span><select data-session-member aria-describedby="member-picker-help"><option value="">Choose a member</option></select></label>
+        <p id="member-picker-help">Choose a name once. Change it on any entry.</p>
+        <p class="member-due" data-member-due hidden></p>
+      </div>
+      <div class="quick-actions" aria-label="Choose what to log">
+        <button class="quick-action quick-grow" type="button" data-go="intake"><strong>Log a grow</strong><span>Add harvested trimmings to stock.</span></button>
+        <button class="quick-action quick-sale" type="button" data-go="sales"><strong>Record a sale</strong><span>Log boxes sold and split the payout.</span></button>
+        <button class="quick-action quick-supply" type="button" data-go="supplies"><strong>Log supplies</strong><span>Record a supply purchase.</span></button>
       </div>
       <aside class="wave-start" data-wave-start hidden>
-        <div><p class="eyebrow" data-wave-label>NEW WAVE</p><h2>A fresh ledger for the crew.</h2><p>Log supplies as you buy them, then add the first harvest. Sales use stock already on the shelves.</p></div>
-        <span class="wave-start-mark" aria-hidden="true">CT</span>
+        <div><p class="eyebrow" data-wave-label>NEW WAVE</p><p>No entries recorded yet.</p></div>
       </aside>
       <div class="metric-grid" id="dashboardMetrics"></div>
       <div class="dashboard-grid">
@@ -62,81 +75,82 @@
         <div id="recentActivity"></div>
       </article>
       <article class="panel crew-panel" aria-labelledby="crew-title">
-        <div class="panel-heading"><div><p class="eyebrow">THIS WAVE'S CREW</p><h2 id="crew-title">Current roster <span class="roster-count" data-roster-count>0</span></h2></div><button class="text-button" type="button" data-go="manager">Manage roster</button></div>
+        <div class="panel-heading"><div><p class="eyebrow">THIS WAVE'S CREW</p><h2 id="crew-title">Current roster <span class="roster-count" data-roster-count>0</span></h2></div></div>
         <ul class="crew-list" id="crewRoster"></ul>
         <div class="split-summary" aria-label="Sale payout rules"><p><strong>70%</strong><span>Grower</span></p><p><strong>15%</strong><span>Seller</span></p><p><strong>15%</strong><span>Gang share</span></p><p class="split-note">Supply costs come from the gang share. Every 15 trimmings makes one box.</p></div>
       </article>
     </section>
 
     <section class="view" data-view-panel="intake" aria-labelledby="intake-title" hidden>
-      <div class="page-heading compact"><div><p class="eyebrow">STOCK IN</p><h1 id="intake-title">Log a grow.</h1><p>Credit the grower and add harvested trimmings to inventory.</p></div></div>
+      <div class="page-heading compact"><div><p class="eyebrow">STOCK IN</p><h1 id="intake-title">Log a grow.</h1><p>Choose who grew it, the strain, and how many trimmings came in.</p></div></div>
       <div class="form-layout">
         <form class="panel tracker-form" id="growForm">
-          <div class="field-grid two">
-            <label><span>Grower</span><select name="grower" data-members required></select></label>
-            <label><span>Date and time</span><input name="date" type="datetime-local" required></label>
-          </div>
+          <label><span>Grower</span><select name="grower" data-members required></select></label>
           <label><span>Strain</span><select name="strain" data-strains required></select></label>
-          <div class="field-grid two">
-            <label><span>Trimmings harvested</span><input name="trimmings" type="number" inputmode="numeric" min="1" step="1" placeholder="0" required><small>15 trimmings make 1 sale-ready box.</small></label>
-            <label><span>Reference value per box</span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required></label>
-          </div>
-          <label><span>Notes <i>optional</i></span><textarea name="notes" rows="3" placeholder="Batch, location, quality, or anything worth remembering"></textarea></label>
-          <button class="button primary full" type="submit">Add to inventory</button>
+          <label><span>Trimmings harvested</span><input name="trimmings" type="number" inputmode="numeric" min="1" step="1" placeholder="0" required></label>
+          <details class="form-details"><summary>Date, notes, and reference price <span>optional</span></summary><div class="form-details-fields">
+            <label><span>Date and time</span><input name="date" type="datetime-local" required></label>
+            <label><span>Reference value per box <i>optional</i></span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" value="0"><small>The actual sale price is entered when stock is sold.</small></label>
+            <label><span>Notes <i>optional</i></span><textarea name="notes" rows="2" placeholder="Batch or anything worth remembering"></textarea></label>
+          </div></details>
+          <p class="entry-hint" data-grow-preview>15 trimmings make one box. Leftover trimmings stay in stock.</p>
+          <p class="form-feedback" data-form-feedback role="status" tabindex="-1" hidden></p>
+          <button class="button primary full" type="submit">Save grow</button>
         </form>
-        <aside class="panel form-aside"><p class="eyebrow">WHAT THIS DOES</p><h2>Stock belongs to its grower.</h2><p>Grows are counted in trimmings. Every 15 trimmings become 1 box that can be sold for that grower, keeping the 70% payout accurate.</p><div class="formula"><span>Grower</span><strong>70%</strong><span>Gang</span><strong>15%</strong><span>Seller</span><strong>15%</strong></div></aside>
       </div>
     </section>
 
     <section class="view" data-view-panel="supplies" aria-labelledby="supplies-title" hidden>
-      <div class="page-heading compact"><div><p class="eyebrow">COSTS IN</p><h1 id="supplies-title">Log supplies.</h1><p>Record supplies bought by a member. The gang owes that buyer, and the cost is recovered from the gang's 15% share.</p></div></div>
+      <div class="page-heading compact"><div><p class="eyebrow">COSTS IN</p><h1 id="supplies-title">Log supplies.</h1><p>Record who paid, what they bought, and the cost.</p></div></div>
       <div class="form-layout">
         <form class="panel tracker-form" id="supplyForm">
-          <div class="field-grid two">
-            <label><span>Bought by</span><select name="buyer" data-members required></select></label>
-            <label><span>Date and time</span><input name="date" type="datetime-local" required></label>
-          </div>
+          <label><span>Bought by</span><select name="buyer" data-members required></select></label>
           <label><span>Supply item</span><input name="item" type="text" maxlength="100" placeholder="Seeds" required></label>
           <div class="field-grid two">
             <label><span>Quantity</span><input name="quantity" type="number" inputmode="numeric" min="1" step="1" placeholder="10" required></label>
             <label><span>Cost per item</span><input name="unitCost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="100" required><small>Example: 10 seeds at $100 each.</small></label>
           </div>
-          <label><span>Notes <i>optional</i></span><textarea name="notes" rows="3" placeholder="Vendor, run, receipt, or anything worth remembering"></textarea></label>
-          <button class="button primary full" type="submit">Add supply cost</button>
+          <details class="form-details"><summary>Date and notes <span>optional</span></summary><div class="form-details-fields">
+            <label><span>Date and time</span><input name="date" type="datetime-local" required></label>
+            <label><span>Notes <i>optional</i></span><textarea name="notes" rows="2" placeholder="Vendor or receipt note"></textarea></label>
+          </div></details>
+          <section class="payout-preview entry-preview" aria-label="Supply total" aria-live="polite"><p class="eyebrow">SUPPLY TOTAL</p><h2 data-preview-supply-total>$0</h2><p>Owed to the member who paid</p><div><span>Supplies still to recover</span><strong data-supply-balance>$0</strong></div><div><span>After this purchase</span><strong data-preview-supply-balance>$0</strong></div><small>The gang's share covers supply costs. A manager marks the buyer's reimbursement paid separately.</small></section>
+          <p class="form-feedback" data-form-feedback role="status" tabindex="-1" hidden></p>
+          <button class="button primary full" type="submit">Save supplies</button>
         </form>
-        <aside class="panel payout-preview" aria-live="polite"><p class="eyebrow">SUPPLY TOTAL</p><h2 data-preview-supply-total>$0</h2><p>Owed to the member who fronted it</p><div><span>Current recovery balance</span><strong data-supply-balance>$0</strong></div><div><span>Recovery balance after entry</span><strong data-preview-supply-balance>$0</strong></div><small>Future gang shares recover this expense. The buyer's reimbursement is tracked separately until a manager marks it paid.</small></aside>
       </div>
       <article class="panel"><div class="panel-heading"><div><p class="eyebrow">PURCHASE HISTORY</p><h2>Supply ledger</h2></div></div><div id="supplyTable"></div></article>
     </section>
 
     <section class="view" data-view-panel="sales" aria-labelledby="sales-title" hidden>
-      <div class="page-heading compact"><div><p class="eyebrow">PRODUCT OUT</p><h1 id="sales-title">Record a sale.</h1><p>Choose the seller, the grower whose stock moved, and the final sale price.</p></div></div>
+      <div class="page-heading compact"><div><p class="eyebrow">PRODUCT OUT</p><h1 id="sales-title">Record a sale.</h1><p>Choose whose stock sold, the number of boxes, and the actual price.</p></div></div>
       <aside class="stock-notice" data-no-sale-stock hidden><p>There are no sale-ready boxes yet. Log at least 15 trimmings for a grower and strain before recording a sale.</p><button class="button secondary" type="button" data-go="intake">Log a grow</button></aside>
       <div class="form-layout sale-layout">
         <form class="panel tracker-form" id="saleForm">
           <div class="field-grid two">
             <label><span>Seller</span><select name="seller" data-members required></select></label>
-            <label><span>Source grower</span><select name="grower" data-inventory-growers required></select></label>
+            <label><span>Whose stock?</span><select name="grower" data-inventory-growers required></select></label>
           </div>
           <label><span>Strain from inventory</span><select name="strain" data-inventory-strains required></select><small data-available-stock>Choose a grower to see stock.</small></label>
           <div class="field-grid two">
             <label><span>Boxes sold</span><input name="boxes" type="number" inputmode="numeric" min="1" step="1" placeholder="0" required><small>Each box uses 15 trimmings from the selected grower.</small></label>
             <label><span>Sale price per box</span><input name="price" type="number" inputmode="decimal" min="0" step="0.01" placeholder="3000" required></label>
           </div>
-          <div class="field-grid two">
+          <details class="form-details"><summary>Date and sale note <span>optional</span></summary><div class="form-details-fields">
             <label><span>Date and time</span><input name="date" type="datetime-local" required></label>
-            <label><span>Reference <i>optional</i></span><input name="reference" type="text" maxlength="80" placeholder="Buyer, run, or receipt note"></label>
-          </div>
-          <button class="button sale full" type="submit">Record sale and split payout</button>
+            <label><span>Sale note <i>optional</i></span><input name="reference" type="text" maxlength="80" placeholder="Buyer or receipt note"></label>
+          </div></details>
+          <section class="payout-preview entry-preview" aria-label="Estimated payout split" aria-live="polite"><p class="eyebrow">ESTIMATED SPLIT</p><h2 data-preview-gross>$0</h2><p>Total sale</p><div><span>Grower · 70%</span><strong data-preview-grower>$0</strong></div><div><span>Seller · 15%</span><strong data-preview-seller>$0</strong></div><div><span>Supplies from gang's 15%</span><strong data-preview-supplies>-$0</strong></div><div><span>Gang keeps</span><strong data-preview-gang>$0</strong></div><small>Saving checks the latest stock and supply balance before confirming this split.</small></section>
+          <p class="form-feedback" data-form-feedback role="status" tabindex="-1" hidden></p>
+          <button class="button sale full" type="submit">Save sale</button>
         </form>
-        <aside class="panel payout-preview" aria-live="polite"><p class="eyebrow">LIVE SPLIT</p><h2 data-preview-gross>$0</h2><p>Gross sale</p><div><span><i class="grower-color"></i>Grower - 70%</span><strong data-preview-grower>$0</strong></div><div><span><i class="seller-color"></i>Seller - 15%</span><strong data-preview-seller>$0</strong></div><div><span>Supplies from gang share</span><strong data-preview-supplies>-$0</strong></div><div><span><i class="gang-color"></i>Gang keeps</span><strong data-preview-gang>$0</strong></div><small>Supplies only reduce the gang's 15%. Grower and seller payouts stay whole.</small></aside>
       </div>
     </section>
 
     <section class="view" data-view-panel="payouts" aria-labelledby="payouts-title" hidden>
       <div class="page-heading compact"><div><p class="eyebrow">PAY THE CREW</p><h1 id="payouts-title">Payouts.</h1><p>Everyone can view what is earned, paid, and still due. Payment controls are only in Manager.</p></div><div class="heading-actions"><button class="button secondary" type="button" data-export="payouts">Export payout CSV</button></div></div>
-      <div class="metric-grid payout-metrics" id="payoutMetrics"></div>
       <article class="panel"><div class="panel-heading"><div><p class="eyebrow">BY MEMBER</p><h2>Outstanding totals</h2></div></div><div id="memberPayouts"></div></article>
+      <details class="form-details payout-totals"><summary>Group totals and split</summary><div class="metric-grid payout-metrics" id="payoutMetrics"></div></details>
     </section>
 
     <section class="view" data-view-panel="ledger" aria-labelledby="ledger-title" hidden>
@@ -176,9 +190,10 @@
     <form method="dialog" id="accessForm">
       <div class="access-mark" aria-hidden="true">CT</div>
       <p class="eyebrow" data-wave-label>NEW WAVE</p>
-      <h2 id="access-title">The crew's business.<br>All in one place.</h2>
-      <p>Enter your gang access code to open inventory, sales, and payouts. Access lasts for this browser session.</p>
-      <label><span>Access code</span><input name="accessCode" type="password" autocomplete="current-password" required autofocus></label>
+      <h2 id="access-title">Group access</h2>
+      <p>Enter the group password to open the tracker.</p>
+      <label for="group-password-input"><span>Group password</span></label>
+      <div class="password-field"><input id="group-password-input" name="accessCode" type="text" autocomplete="current-password" autocapitalize="none" spellcheck="false" required autofocus><button type="button" data-password-toggle="group-password-input" data-password-label="group password" aria-controls="group-password-input" aria-pressed="true" aria-label="Hide group password">Hide</button></div>
       <button class="button primary full" type="submit">Unlock tracker</button>
       <small data-access-error role="alert"></small>
     </form>
@@ -189,7 +204,8 @@
       <p class="eyebrow">MANAGER ACCESS</p>
       <h2 id="admin-title">Unlock manager controls.</h2>
       <p>This unlocks record corrections, the private payout queue, weekly rollover, roster changes, strains, and pricing.</p>
-      <label><span>Manager password</span><input name="adminCode" type="password" autocomplete="current-password" required></label>
+      <label for="manager-password-input"><span>Manager password</span></label>
+      <div class="password-field"><input id="manager-password-input" name="adminCode" type="password" autocomplete="current-password" autocapitalize="none" spellcheck="false" required><button type="button" data-password-toggle="manager-password-input" data-password-label="manager password" aria-controls="manager-password-input" aria-pressed="false" aria-label="Show manager password">Show</button></div>
       <button class="button primary full" type="submit">Unlock manager</button>
       <small data-admin-error role="alert"></small>
     </form>
@@ -222,6 +238,6 @@
   </dialog>
   <div class="toast" role="status" aria-live="polite" data-toast></div>
   <script src="config.js?v=20261121"></script>
-  <script src="app.js?v=20261121.2"></script>
+  <script src="app.js?v=20261121.3"></script>
 </body>
 </html>

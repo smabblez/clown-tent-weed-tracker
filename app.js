@@ -5,7 +5,7 @@
   const TRIMMINGS_PER_BOX = 15;
   const PAYOUT_RATES = Object.freeze({ grower: 0.70, gang: 0.15, seller: 0.15 });
   const MAX_MONEY_CENTS = Math.floor(Number.MAX_SAFE_INTEGER / 100);
-  const state = { members: [], strains: [], grows: [], supplies: [], sales: [], corrections: [], weeks: [], activeWeek: null, accessCode: sessionStorage.getItem("ct_access") || "", adminCode: sessionStorage.getItem("ct_admin") || "", pendingView: "", busy: false };
+  const state = { members: [], strains: [], grows: [], supplies: [], sales: [], corrections: [], weeks: [], activeWeek: null, accessCode: sessionStorage.getItem("ct_access") || "", adminCode: sessionStorage.getItem("ct_admin") || "", memberName: sessionStorage.getItem("ct_member") || "", pendingView: "", busy: false };
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const wholeMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: config.CURRENCY || "USD", maximumFractionDigits: 0 });
@@ -178,6 +178,9 @@
     state.busy = false;
     sessionStorage.removeItem("ct_access");
     state.accessCode = "";
+    state.memberName = "";
+    sessionStorage.removeItem("ct_member");
+    ["growForm", "supplyForm", "saleForm"].forEach(function (id) { resetEntryForm($("#" + id)); setFormFeedback($("#" + id), ""); });
     $("#accessForm").elements.accessCode.value = "";
     lockAdmin();
     closeAdmin();
@@ -329,7 +332,7 @@
       inventory.slice(0, 10).map(function (row) {
         return [esc(row.grower), esc(row.strain), { value: number.format(row.trimmings), num: true }, { value: number.format(row.boxes), num: true }];
       })
-    ) : '<div class="empty"><strong>The shelves are ready.</strong><p>Log a harvest to credit its grower and add stock.</p><button class="button secondary" type="button" data-go="intake">Log the first grow</button></div>';
+    ) : '<div class="empty"><strong>No stock recorded.</strong><p>Log a grow to add trimmings.</p><button class="button secondary" type="button" data-go="intake">Log a grow</button></div>';
     $("#dashboardPayouts").innerHTML = payouts.people.length ? payouts.people.slice(0, 6).map(function (person) {
       const max = payouts.people[0].total || 1;
       return '<div class="payout-row"><span>' + esc(person.name) + "</span><strong>" + money.format(person.total) + '</strong><div class="progress"><i style="width:' + Math.max(4, person.total / max * 100) + '%"></i></div></div>';
@@ -406,15 +409,12 @@
       metric("Growers owed", money.format(growerOwed), "70% shares not marked paid"),
       metric("Sellers owed", money.format(sellerOwed), "15% shares not marked paid"),
       metric("Supply reimbursements", money.format(summary.suppliesDue), "fronted costs not marked paid"),
-      metric("Total member queue", money.format(growerOwed + sellerOwed + summary.suppliesDue), summary.people.length + " members"),
+      metric("Total owed to members", money.format(growerOwed + sellerOwed + summary.suppliesDue), summary.people.length + " members"),
       metric("Gang keeps", money.format(summary.gangTotal), "after supply costs")
     ].join("");
-    $("#memberPayouts").innerHTML = statements.length ? table(
-      ["Member", "Sales earned", "Supply reimbursements", "Paid out", "Remaining due"],
-      statements.map(function (row) {
-        return [esc(row.name), { value: money.format(row.earned), num: true }, { value: money.format(row.supplies), num: true }, { value: money.format(row.paid), num: true }, { value: "<strong>" + money.format(row.due) + "</strong>", num: true, raw: true }];
-      })
-    ) : empty("Everyone is settled.");
+    $("#memberPayouts").innerHTML = statements.length ? '<div class="member-payout-cards">' + statements.map(function (row) {
+      return '<article class="member-payout-card"><div><h3>' + esc(row.name) + '</h3><span>' + (row.due > 0 ? 'Still owed' : 'Paid in full') + '</span></div><strong>' + money.format(row.due) + '</strong><details><summary>Breakdown</summary><dl><div><dt>Sales earned</dt><dd>' + money.format(row.earned) + '</dd></div><div><dt>Supply purchases</dt><dd>' + money.format(row.supplies) + '</dd></div><div><dt>Already paid</dt><dd>' + money.format(row.paid) + '</dd></div></dl></details></article>';
+    }).join("") + '</div>' : empty("No payouts owed.");
     const unsettled = state.sales.filter(function (sale) { return !sale.growerPaidAt || !sale.sellerPaidAt; }).sort(function (a, b) { return new Date(b.timestamp) - new Date(a.timestamp); });
     const unsettledSupplies = state.supplies.filter(function (supply) { return !supply.paidAt; }).sort(function (a, b) { return new Date(b.timestamp) - new Date(a.timestamp); });
     const hasUnsettled = unsettled.length || unsettledSupplies.length;
@@ -604,6 +604,56 @@
     growerSelect.innerHTML = '<option value="">Choose a grower</option>' + growers.map(function (name) { return '<option value="' + esc(name) + '">' + esc(name) + "</option>"; }).join("");
     if (growers.includes(current)) growerSelect.value = current;
     renderInventoryStrains();
+    renderMemberShortcut();
+  }
+  function applyMemberDefaults() {
+    [["growForm", "grower"], ["supplyForm", "buyer"], ["saleForm", "seller"]].forEach(function (pair) {
+      const form = $("#" + pair[0]);
+      const select = form.elements[pair[1]];
+      if (form.dataset.memberChosen !== "true" && (!select.value || select.value === select.dataset.defaultMember)) {
+        select.value = state.members.includes(state.memberName) ? state.memberName : "";
+        select.dataset.defaultMember = select.value;
+      }
+    });
+  }
+  function renderMemberShortcut() {
+    const select = $("[data-session-member]");
+    if (!state.members.includes(state.memberName)) { state.memberName = ""; sessionStorage.removeItem("ct_member"); }
+    select.innerHTML = '<option value="">Choose a member (optional)</option>' + state.members.map(function (name) { return '<option value="' + esc(name) + '">' + esc(name) + '</option>'; }).join("");
+    select.value = state.memberName;
+    const due = $("[data-member-due]");
+    due.hidden = !state.memberName;
+    const person = payoutSummary().people.find(function (row) { return row.name === state.memberName; });
+    due.textContent = state.memberName ? state.memberName + " is owed " + money.format(person ? person.total : 0) + "." : "";
+    applyMemberDefaults();
+  }
+  function setFormFeedback(form, message, kind) {
+    const notice = $("[data-form-feedback]", form);
+    notice.textContent = message || "";
+    notice.hidden = !message;
+    notice.dataset.kind = kind || "success";
+  }
+  function resetEntryForm(form) {
+    form.reset();
+    delete form.dataset.memberChosen;
+    delete form.dataset.dateEdited;
+    form.date.value = nowInput();
+    $$("details", form).forEach(function (details) { details.open = false; });
+    applyMemberDefaults();
+    if (form.id === "saleForm") { renderInventoryStrains(); updateSalePreview(); }
+    if (form.id === "supplyForm") updateSupplyPreview();
+    if (form.id === "growForm") updateGrowPreview();
+  }
+  function entryTimestamp(form) {
+    if (form.dataset.dateEdited !== "true") form.date.value = nowInput();
+    return form.date.value;
+  }
+  function updateGrowPreview() {
+    const count = Number($("#growForm").trimmings.value);
+    const message = Number.isSafeInteger(count) && count > 0
+      ? quantity(Math.floor(count / TRIMMINGS_PER_BOX), "full box", "full boxes") + " + " + quantity(count % TRIMMINGS_PER_BOX, "trimming", "trimmings") + " left over."
+      : "15 trimmings make 1 box. Leftover trimmings stay in stock.";
+    $("[data-grow-preview]").textContent = message;
   }
   function renderAll() {
     renderDashboard();
@@ -616,6 +666,7 @@
     renderWeeks();
     updateSalePreview();
     updateSupplyPreview();
+    updateGrowPreview();
     $$("[data-sheet-link]").forEach(function (link) { link.href = config.SHEET_URL; });
     renderWaveDetails();
   }
@@ -640,6 +691,7 @@
     if (state.weeks.some(function (week) { return week.id === current; })) select.value = current;
   }
   function showView(name, updateHash) {
+    $("[data-more-nav]").open = false;
     if (name === "manager" && !state.adminCode) {
       state.pendingView = "manager";
       openAdmin();
@@ -652,16 +704,21 @@
     $$("[data-view]").forEach(function (button) {
       button.setAttribute("aria-current", button.dataset.view === name ? "page" : "false");
     });
+    $("[data-more-nav]").classList.toggle("active", ["supplies", "ledger", "manager"].includes(name));
+    const form = { intake: $("#growForm"), supplies: $("#supplyForm"), sales: $("#saleForm") }[name];
+    if (form && form.dataset.dateEdited !== "true") form.date.value = nowInput();
     if (updateHash !== false) history.replaceState(null, "", "#" + name);
+    if (updateHash !== false) $("#app-main").focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
-  async function mutate(action, payload, successMessage) {
-    return mutateWith(function () { return request(action, payload); }, successMessage);
+  async function mutate(action, payload, successMessage, feedbackForm) {
+    return mutateWith(function () { return request(action, payload); }, successMessage, feedbackForm);
   }
-  async function mutateWith(operation, successMessage) {
+  async function mutateWith(operation, successMessage, feedbackForm) {
     if (state.busy) return false;
     const generation = sessionGeneration;
     state.busy = true;
+    if (feedbackForm) setFormFeedback(feedbackForm, "Saving entry...", "pending");
     $$("button[type=submit]").forEach(function (button) { button.disabled = true; });
     setSync("loading", "Saving to shared sheet...");
     try {
@@ -671,6 +728,7 @@
       setSync("synced", "Shared sheet synced");
       renderAll();
       toast(successMessage);
+      if (feedbackForm) setFormFeedback(feedbackForm, successMessage, "success");
       return true;
     } catch (error) {
       if (generation !== sessionGeneration) return false;
@@ -681,6 +739,7 @@
         openAdmin(error.message);
       }
       toast(error.message);
+      if (feedbackForm) setFormFeedback(feedbackForm, error.message, "error");
       return false;
     } finally {
       if (generation === sessionGeneration) {
@@ -782,33 +841,36 @@
   $("#growForm").addEventListener("submit", async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
+    entryTimestamp(form);
     const data = Object.fromEntries(new FormData(form));
     const trimmings = num(data.trimmings);
-    if (!Number.isInteger(trimmings) || trimmings < 1) { toast("Enter a whole number of trimmings."); return; }
-    const ok = await mutate("addGrow", { record: { timestamp: data.date, grower: data.grower, strain: data.strain, trimmings: trimmings, unitPrice: num(data.price), notes: data.notes } }, "Grow trimmings added to shared inventory.");
-    if (ok) { form.reset(); form.date.value = nowInput(); }
+    if (!Number.isInteger(trimmings) || trimmings < 1) { setFormFeedback(form, "Enter a whole number of trimmings.", "error"); return; }
+    const ok = await mutate("addGrow", { record: { timestamp: data.date, grower: data.grower, strain: data.strain, trimmings: trimmings, unitPrice: num(data.price), notes: data.notes } }, "Saved " + quantity(trimmings, "trimming", "trimmings") + " of " + data.strain + " for " + data.grower + ".", form);
+    if (ok) resetEntryForm(form);
   });
   $("#supplyForm").addEventListener("submit", async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
+    entryTimestamp(form);
     const data = Object.fromEntries(new FormData(form));
     const quantity = num(data.quantity);
     const unitCost = num(data.unitCost);
-    if (!Number.isInteger(quantity) || quantity < 1) { toast("Enter a whole supply quantity."); return; }
-    if (unitCost < 0) { toast("Supply cost cannot be negative."); return; }
-    const ok = await mutate("addSupply", { record: { timestamp: data.date, buyer: data.buyer, item: data.item, quantity: quantity, unitCost: unitCost, notes: data.notes } }, "Supply cost added to the gang balance.");
-    if (ok) { form.reset(); form.date.value = nowInput(); updateSupplyPreview(); }
+    if (!Number.isInteger(quantity) || quantity < 1) { setFormFeedback(form, "Enter a whole supply quantity.", "error"); return; }
+    if (unitCost < 0) { setFormFeedback(form, "Supply cost cannot be negative.", "error"); return; }
+    const ok = await mutate("addSupply", { record: { timestamp: data.date, buyer: data.buyer, item: data.item, quantity: quantity, unitCost: unitCost, notes: data.notes } }, "Saved supplies. " + data.buyer + " is owed " + money.format(quantity * unitCost) + " for this purchase.", form);
+    if (ok) resetEntryForm(form);
   });
   $("#saleForm").addEventListener("submit", async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
+    entryTimestamp(form);
     const data = Object.fromEntries(new FormData(form));
-    if (!Number.isInteger(num(data.boxes)) || num(data.boxes) < 1) { toast("Sales must use whole boxes."); return; }
+    if (!Number.isInteger(num(data.boxes)) || num(data.boxes) < 1) { setFormFeedback(form, "Sales must use whole boxes.", "error"); return; }
     const lot = inventoryRows().find(function (row) { return row.grower === data.grower && row.strain === data.strain; });
     const available = lot ? lot.boxes : 0;
-    if (num(data.boxes) > available) { toast("Only " + number.format(available) + " boxes are available for that lot."); return; }
-    const ok = await mutate("addSale", { record: { timestamp: data.date, seller: data.seller, grower: data.grower, strain: data.strain, boxes: num(data.boxes), unitPrice: num(data.price), reference: data.reference } }, "Sale recorded and payout split created.");
-    if (ok) { form.reset(); form.date.value = nowInput(); updateSalePreview(); showView("payouts"); }
+    if (num(data.boxes) > available) { setFormFeedback(form, "Only " + number.format(available) + " boxes are available for that lot.", "error"); return; }
+    const ok = await mutate("addSale", { record: { timestamp: data.date, seller: data.seller, grower: data.grower, strain: data.strain, boxes: num(data.boxes), unitPrice: num(data.price), reference: data.reference } }, "Saved " + quantity(data.boxes, "box", "boxes") + " sold by " + data.seller + ". Stock and payouts are updated.", form);
+    if (ok) resetEntryForm(form);
   });
   $("#correctionForm").addEventListener("submit", async function (event) {
     event.preventDefault();
@@ -851,6 +913,16 @@
     if (await mutate("upsertConfig", { kind: "strain", name: name, price: num(data.price) }, name + " added to the product list.")) form.reset();
   });
   document.addEventListener("click", async function (event) {
+    const visibilityButton = event.target.closest("[data-password-toggle]");
+    if (visibilityButton) {
+      const input = document.getElementById(visibilityButton.dataset.passwordToggle);
+      const visible = input.type === "password";
+      input.type = visible ? "text" : "password";
+      visibilityButton.textContent = visible ? "Hide" : "Show";
+      visibilityButton.setAttribute("aria-pressed", String(visible));
+      visibilityButton.setAttribute("aria-label", (visible ? "Hide " : "Show ") + visibilityButton.dataset.passwordLabel);
+      return;
+    }
     const viewButton = event.target.closest("[data-view], [data-go]");
     if (viewButton) showView(viewButton.dataset.view || viewButton.dataset.go);
     const actionElement = event.target.closest("[data-action]");
@@ -946,6 +1018,28 @@
   });
   $("#saleForm").addEventListener("input", updateSalePreview);
   $("#supplyForm").addEventListener("input", updateSupplyPreview);
+  $("#growForm").addEventListener("input", updateGrowPreview);
+  $("[data-session-member]").addEventListener("change", function (event) {
+    state.memberName = state.members.includes(event.target.value) ? event.target.value : "";
+    if (state.memberName) sessionStorage.setItem("ct_member", state.memberName); else sessionStorage.removeItem("ct_member");
+    renderMemberShortcut();
+  });
+  [["growForm", "grower"], ["supplyForm", "buyer"], ["saleForm", "seller"]].forEach(function (pair) {
+    const form = $("#" + pair[0]);
+    form.elements[pair[1]].addEventListener("change", function () { form.dataset.memberChosen = "true"; });
+    form.date.addEventListener("input", function () { form.dataset.dateEdited = "true"; });
+    form.addEventListener("input", function () {
+      const notice = $("[data-form-feedback]", form);
+      if (notice.dataset.kind === "success") setFormFeedback(form, "");
+    });
+    form.addEventListener("invalid", function (event) {
+      const details = event.target.closest("details");
+      if (details) details.open = true;
+      const label = event.target.closest("label");
+      const fieldName = label && $("span", label);
+      setFormFeedback(form, (fieldName ? fieldName.textContent + ": " : "") + event.target.validationMessage, "error");
+    }, true);
+  });
   $("#ledgerSearch").addEventListener("input", renderLedger);
   $("#ledgerType").addEventListener("change", renderLedger);
   $("#ledgerWeek").addEventListener("change", renderLedger);
